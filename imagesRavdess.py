@@ -347,7 +347,7 @@ print(f"[INFO] Loading metadata from: {CSV_PATH}")
 
 # Wczytaj DataFrame
 df = pd.read_csv(CSV_PATH)
-df = df_to_hf_dataset(df, RAVDESS_DIR)
+df = prepare_dataset_paths(df, "/net/tscratch/people/plgmarbar/ravdess")
 print(f"[INFO] Loaded {len(df)} samples")
 
 # Mapowanie etykiet na ID
@@ -437,9 +437,7 @@ class SERDataset(Dataset):
           if random.random() < 0.3:
               waveform = self.noise_augment(waveform)
           if random.random() < 0.3:
-            n_steps = random.choice([-2, -1, 1, 2])
-            pitch_shift = T.PitchShift(self.sample_rate, n_steps=n_steps)
-            waveform = pitch_shift(waveform)
+            waveform = self.pitch_shift(waveform)
       return waveform.detach()  # ✅ Ensure tensor doesn’t require grad
 
 
@@ -466,17 +464,17 @@ class SERDataset(Dataset):
         mel = self.mel_transform(waveform)
         mel_db = self.db_transform(mel)
         mel_db = (mel_db - mel_db.mean()) / (mel_db.std() + 1e-9)
-        # img = mel_db.repeat(3, 1, 1)
-        # if self.augment:
-        #     img = self.img_transforms(img)
-        # return img, label
+        img = mel_db.repeat(3, 1, 1)
         if self.augment:
-            mel_db = self._augment_spectrogram(mel_db)
+             img = self.img_transforms(img)
+        return img, label
+        #if self.augment:
+        #    mel_db = self._augment_spectrogram(mel_db)
 
         # PANNs expect 3-channel input sometimes (for pretrained CNNs)
-        mel_db = mel_db.expand(3, -1, -1)  # [3, n_mels, time]
+        #mel_db = mel_db.expand(3, -1, -1)  # [3, n_mels, time]
 
-        return mel_db, torch.tensor(label, dtype=torch.long)
+        #return mel_db, torch.tensor(label, dtype=torch.long)
 
 # -----------------------
 # 5. Models
@@ -517,13 +515,16 @@ class ResNetSpectrogramClassifier(nn.Module):
 #             x = x.mean(dim=1, keepdim=True)
 #         output_dict = self.backbone(x)
 #         return output_dict['clipwise_output']
+#from panns_inference.models import Cnn14
 
 class PANNsSpectrogramClassifier(nn.Module):
     """PANNs (Cnn14) feature-based classifier for SER."""
     def __init__(self, num_classes: int, freeze_backbone: bool = False):
         super().__init__()
         print("[INFO] Loading pretrained PANNs (Cnn14) backbone...")
-        self.backbone = torch_hub_load('qiuqiangkong/panns_inference', 'Cnn14', pretrained=True)
+        self.backbone = Cnn14(pretrained=True)  # No hub load needed
+        in_features = self.backbone.fc_audioset.in_features
+        self.backbone.fc_audioset = nn.Linear(in_features, num_classes)
         self.fc = nn.Linear(2048, num_classes)
 
         if freeze_backbone:
@@ -691,4 +692,4 @@ def run_experiment(df, model_name, output_dir="checkpoints", batch_size=16, n_ep
 
     print(json.dumps({k: metrics[k] for k in ['accuracy', 'balanced_accuracy', 'f1_macro']}, indent=2))
 
-run_experiment(df,model_name="panns_cnn14", output_dir=OUTPUT_DIR, batch_size=2, n_epochs=25)
+run_experiment(df,model_name="resnet18", output_dir=OUTPUT_DIR, batch_size=2, n_epochs=25)
