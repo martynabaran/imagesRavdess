@@ -44,7 +44,7 @@ HF_CACHE = os.path.join(SCRATCH, "huggingface_cache")
 DATASET_DIR = os.path.join("/net/tscratch/people/plgmarbar/", "ravdess")
 # Ścieżka do folderu z danymi (rozpakowany ZIP)
 RAVDESS_DIR = os.path.join("/net/tscratch/people/plgmarbar/ravdess", "ravdess_audio_only")
-CSV_PATH = os.path.join(RAVDESS_DIR, "ravdess_metadata_clean.csv")
+CSV_PATH = os.path.join(RAVDESS_DIR, "metadata_with_emotions.csv")
 OUTPUT_DIR = os.path.join("/net/tscratch/people/plgmarbar/ravdess", "image_approach_checkpoints_zapis_metryk")
 
 
@@ -743,4 +743,5 @@ def run_experiment(df, model_name, output_dir="checkpoints", batch_size=16, n_ep
     print(json.dumps({k: metrics[k] for k in ['accuracy', 'balanced_accuracy', 'f1_macro']}, indent=2))
 
 run_experiment(df,model_name="resnet18", output_dir=OUTPUT_DIR, batch_size=2, n_epochs=25)
+
 
